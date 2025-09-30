@@ -1,0 +1,1 @@
+Frontend ready for Vercel. Set REACT_APP_API_URL env var to backend URL. npm install && npm run build to build.
