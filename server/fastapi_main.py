@@ -24,32 +24,33 @@ CITY_COORDS = {
     "Bengaluru": "12.9716,77.5946"
 }
 
-
 # --- Real-time summary using OpenAQ ---
 @app.get("/summary")
 def summary(city: str = Query("Delhi")):
     """
-    Returns real-time PM2.5 data for a given city using OpenAQ (coordinates-based).
+    Returns real-time PM2.5 data for a given city using OpenAQ (measurements API).
     """
     coords = CITY_COORDS.get(city, CITY_COORDS["Delhi"])  # default to Delhi
-    url = "https://api.openaq.org/v2/latest"
+    url = "https://api.openaq.org/v2/measurements"
     params = {
         "coordinates": coords,
-        "radius": 50000,   # 50 km search radius
+        "radius": 50000,
         "parameter": "pm25",
-        "limit": 1
+        "limit": 1,
+        "sort": "desc",
+        "order_by": "datetime"
     }
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
         if data.get("results"):
-            meas = data["results"][0]["measurements"][0]
+            meas = data["results"][0]
             val = meas["value"]
             return {
                 "city": city,
                 "current_pm25": val,
-                "recent_rain_mm": 0,   # placeholder until rainfall API is integrated
+                "recent_rain_mm": 0,   # rainfall integration later
                 "risk_level": "High" if val > 100 else "Medium" if val > 60 else "Low"
             }
     except Exception as e:
@@ -73,12 +74,14 @@ def forecast(city: str = Query("Delhi")):
     Generates synthetic predictions for next 5 days.
     """
     coords = CITY_COORDS.get(city, CITY_COORDS["Delhi"])
-    url = "https://api.openaq.org/v2/latest"
+    url = "https://api.openaq.org/v2/measurements"
     params = {
         "coordinates": coords,
         "radius": 50000,
         "parameter": "pm25",
-        "limit": 1
+        "limit": 1,
+        "sort": "desc",
+        "order_by": "datetime"
     }
 
     val = None
@@ -87,7 +90,7 @@ def forecast(city: str = Query("Delhi")):
         r.raise_for_status()
         data = r.json()
         if data.get("results"):
-            val = data["results"][0]["measurements"][0]["value"]
+            val = data["results"][0]["value"]
     except Exception:
         pass
 
@@ -138,10 +141,14 @@ def data_daily(city: str = Query("Delhi"), n: int = Query(7)):
     return rows
 
 
-# --- Root route for status ---
+# --- Root route for status (handles GET & HEAD) ---
 @app.get("/")
 def root():
     return {
         "status": "EnvHealth API is live ✅",
         "endpoints": ["/summary", "/forecast", "/data/daily"]
     }
+
+@app.head("/")
+def root_head():
+    return {"status": "ok"}
